@@ -10,10 +10,10 @@ class Database {
     private $database;
 
     private function __construct() {
-        $configFile = dirname(__DIR__) . '/regidb-d8863-firebase-adminsdk-fbsvc-9a8b6a2dda.json';
+        $configFile = dirname(__DIR__) . '/firebase-credentials.json';
         
         if (!file_exists($configFile)) {
-            throw new Exception("Firebase credentials file not found. Please download from Firebase Console and save as firebase-credentials.json");
+            throw new Exception("Firebase credentials file not found at: $configFile");
         }
 
         $serviceAccount = ServiceAccount::fromValue($configFile);

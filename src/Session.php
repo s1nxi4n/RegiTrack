@@ -26,16 +26,22 @@ function getCurrentAdmin() {
     return isset($_SESSION['admin']) ? $_SESSION['admin'] : null;
 }
 
+function getCurrentAdminId() {
+    startSession();
+    return isset($_SESSION['admin_id']) ? $_SESSION['admin_id'] : '1';
+}
+
 function studentLogin($student) {
     startSession();
     $_SESSION['student_logged_in'] = true;
     $_SESSION['student'] = $student;
 }
 
-function adminLogin($admin) {
+function adminLogin($admin, $adminId = '1') {
     startSession();
     $_SESSION['admin_logged_in'] = true;
     $_SESSION['admin'] = $admin;
+    $_SESSION['admin_id'] = $adminId;
 }
 
 function logout() {

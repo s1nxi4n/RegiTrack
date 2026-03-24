@@ -31,10 +31,6 @@
                 <div class="alert alert-error"><?= htmlspecialchars($error) ?></div>
             <?php endif; ?>
 
-            <?php if (isset($success)): ?>
-                <div class="alert alert-success"><?= htmlspecialchars($success) ?></div>
-            <?php endif; ?>
-
             <form method="POST" action="/">
                 <div class="form-group">
                     <label for="stud_id">Student ID</label>

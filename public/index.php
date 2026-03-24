@@ -12,7 +12,7 @@ if (empty($path)) $path = '/';
 
 function render($view, $data = []) {
     extract($data);
-    $viewFile = __DIR__ . '/../views/' . $view . '.php';
+    $viewFile = __DIR__ . '/../resources/views/' . $view . '.php';
     if (file_exists($viewFile)) {
         require $viewFile;
     } else {
@@ -28,25 +28,29 @@ switch ($path) {
             $pass = $_POST['pass'] ?? '';
 
             if (empty($stud_id) || empty($pass)) {
-                render('index', ['error' => 'Please fill in all fields']);
+                render('auth/login', ['error' => 'Please fill in all fields']);
                 break;
             }
 
             if (!validateStudentId($stud_id)) {
-                render('index', ['error' => 'Invalid ID format. Use XX-XXXX-XXXXXX']);
+                render('auth/login', ['error' => 'Invalid ID format. Use XX-XXXX-XXXXXX']);
                 break;
             }
 
             $student = db()->get("student_list/$stud_id");
-            if ($student && isset($student['password']) && $student['password'] === $pass) {
-                studentLogin($student);
-                header('Location: /home');
-                exit;
-            } else {
-                render('index', ['error' => 'Invalid ID number or password']);
+            if ($student && isset($student['password'])) {
+                if (password_verify($pass, $student['password'])) {
+                    studentLogin($student);
+                    if (password_needs_rehash($student['password'], PASSWORD_DEFAULT)) {
+                        db()->update("student_list/{$student['id']}", ['password' => password_hash($pass, PASSWORD_DEFAULT)]);
+                    }
+                    header('Location: /home');
+                    exit;
+                }
             }
+            render('auth/login', ['error' => 'Invalid ID number or password']);
         } else {
-            render('index');
+            render('auth/login');
         }
         break;
 
@@ -72,7 +76,12 @@ switch ($path) {
             return isset($req['inquiree_id']) && $req['inquiree_id'] === $student['id']
                 && ($req['status'] ?? '') === 'Declined';
         });
-        render('home', ['user' => $student, 'appointments' => $currentAppointments, 'history' => $historyAppointments, 'pendingRequests' => array_merge($pendingRequests, $declinedRequests)]);
+        render('student/dashboard', [
+            'user' => $student, 
+            'appointments' => $currentAppointments, 
+            'history' => array_merge($historyAppointments, $declinedRequests), 
+            'pendingRequests' => $pendingRequests
+        ]);
         break;
 
     case '/logout':
@@ -85,28 +94,30 @@ switch ($path) {
             $password = $_POST['password'] ?? '';
 
             if (empty($name) || empty($password)) {
-                render('adminlogin', ['error' => 'Please fill in all fields']);
+                render('auth/admin-login', ['error' => 'Please fill in all fields']);
                 break;
             }
 
             $admins = db()->get('admin') ?: [];
             $admin = null;
-            foreach ($admins as $a) {
-                if ($a['name'] === $name && $a['password'] === $password) {
+            $adminId = null;
+            foreach ($admins as $id => $a) {
+                if ($a['name'] === $name && (string)$a['password'] === (string)$password) {
                     $admin = $a;
+                    $adminId = $id;
                     break;
                 }
             }
 
             if ($admin) {
-                adminLogin($admin);
+                adminLogin($admin, $adminId);
                 header('Location: /adminhome');
                 exit;
             } else {
-                render('adminlogin', ['error' => 'Invalid name or password']);
+                render('auth/admin-login', ['error' => 'Invalid name or password']);
             }
         } else {
-            render('adminlogin');
+            render('auth/admin-login');
         }
         break;
 
@@ -117,7 +128,10 @@ switch ($path) {
     case '/adminhome':
         redirectIfNotAdmin();
         $admin = getCurrentAdmin();
-        $requests = db()->get('requests') ?: [];
+        $allRequests = db()->get('requests') ?: [];
+        $requests = array_filter($allRequests, function($req) {
+            return ($req['status'] ?? 'Pending') === 'Pending';
+        });
         $allAppointments = db()->get('appointment_dashboard') ?: [];
         $appointments = array_filter($allAppointments, function($appt) {
             return ($appt['status'] ?? '') !== 'Settled' && ($appt['status'] ?? '') !== 'Cancelled';
@@ -125,13 +139,18 @@ switch ($path) {
         $history = array_filter($allAppointments, function($appt) {
             return ($appt['status'] ?? '') === 'Settled' || ($appt['status'] ?? '') === 'Cancelled';
         });
-        render('adminhome', ['user' => $admin, 'requests' => $requests, 'appointments' => $appointments, 'history' => $history]);
+        $students = db()->get('student_list') ?: [];
+        $studentNames = [];
+        foreach ($students as $id => $student) {
+            $studentNames[$id] = $student['name'] ?? 'Unknown';
+        }
+        render('admin/dashboard', ['user' => $admin, 'requests' => $requests, 'appointments' => $appointments, 'history' => $history, 'studentNames' => $studentNames]);
         break;
 
     case '/schedap':
         redirectIfNotStudent();
         $student = getCurrentStudent();
-        render('schedap', ['user' => $student]);
+        render('student/schedule', ['user' => $student]);
         break;
 
     case '/tor':
@@ -164,7 +183,7 @@ switch ($path) {
             header('Location: /home');
             exit;
         }
-        render('tor', ['user' => $student]);
+        render('student/requests/tor', ['user' => $student]);
         break;
 
     case '/diploma':
@@ -193,7 +212,7 @@ switch ($path) {
             header('Location: /home');
             exit;
         }
-        render('diploma', ['user' => $student]);
+        render('student/requests/diploma', ['user' => $student]);
         break;
 
     case '/rf':
@@ -226,7 +245,7 @@ switch ($path) {
             header('Location: /home');
             exit;
         }
-        render('rf', ['user' => $student]);
+        render('student/requests/rf', ['user' => $student]);
         break;
 
     case '/certificate':
@@ -261,7 +280,7 @@ switch ($path) {
             header('Location: /home');
             exit;
         }
-        render('certificate', ['user' => $student]);
+        render('student/requests/certificate', ['user' => $student]);
         break;
 
     case '/addstud':
@@ -271,21 +290,20 @@ switch ($path) {
             $id = $_POST['id'] ?? '';
             $name = $_POST['name'] ?? '';
             $email = $_POST['email'] ?? '';
-            $password = $_POST['password'] ?? '';
 
-            if (empty($id) || empty($name) || empty($email) || empty($password)) {
-                render('adduser', ['user' => $admin, 'error' => 'Please fill in all fields']);
+            if (empty($id) || empty($name) || empty($email)) {
+                render('admin/add-student', ['user' => $admin, 'error' => 'Please fill in all required fields']);
                 break;
             }
 
             if (!validateStudentId($id)) {
-                render('adduser', ['user' => $admin, 'error' => 'Invalid ID format. Use XX-XXXX-XXXXXX']);
+                render('admin/add-student', ['user' => $admin, 'error' => 'Invalid ID format. Use XX-XXXX-XXXXXX']);
                 break;
             }
 
             $existing = db()->get("student_list/$id");
             if ($existing) {
-                render('adduser', ['user' => $admin, 'error' => 'Student ID already exists']);
+                render('admin/add-student', ['user' => $admin, 'error' => 'Student ID already exists']);
                 break;
             }
 
@@ -293,15 +311,15 @@ switch ($path) {
                 'id' => $id,
                 'name' => $name,
                 'email' => $email,
-                'password' => $password,
-                'added_by' => $admin['admin_id'] ?? '1'
+                'password' => password_hash($id, PASSWORD_DEFAULT),
+                'added_by' => getCurrentAdminId()
             ];
             db()->set("student_list/$id", $studentData);
             
             header('Location: /adminhome');
             exit;
         }
-        render('adduser', ['user' => $admin]);
+        render('admin/add-student', ['user' => $admin]);
         break;
 
     case '/setappointment':
@@ -311,7 +329,7 @@ switch ($path) {
             $req_type = $_POST['req_type'] ?? '';
             $ret_date = $_POST['ret_date'] ?? '';
             $request_id = $_POST['request_id'] ?? '';
-            $handlerId = getCurrentAdmin()['admin_id'] ?? '1';
+            $handlerId = getCurrentAdminId();
 
             $apptData = [
                 'student_id' => $stud_id,
@@ -331,7 +349,7 @@ switch ($path) {
         }
         $admin = getCurrentAdmin();
         $requests = db()->get('requests') ?: [];
-        render('setappointment', ['user' => $admin, 'requests' => $requests]);
+        render('admin/set-appointment', ['user' => $admin, 'requests' => $requests]);
         break;
 
     case '/declineRequest':
@@ -380,19 +398,6 @@ switch ($path) {
         }
         exit;
 
-    case '/deleteRequest':
-        redirectIfNotAdmin();
-        $reqId = $_POST['id'] ?? '';
-        if ($reqId) {
-            db()->remove("requests/$reqId");
-            db()->remove("transcript_of_records/$reqId");
-            db()->remove("diploma/$reqId");
-            db()->remove("rf/$reqId");
-            db()->remove("certification/$reqId");
-        }
-        header('Location: /adminhome');
-        exit;
-
     case '/updateStatus':
         redirectIfNotAdmin();
         if ($requestMethod === 'POST') {
@@ -436,6 +441,98 @@ switch ($path) {
     case '/contact':
         render('contact');
         break;
+
+    case '/change-password':
+        redirectIfNotStudent();
+        $student = getCurrentStudent();
+        if ($requestMethod === 'POST') {
+            $currentPassword = $_POST['current_password'] ?? '';
+            $newPassword = $_POST['new_password'] ?? '';
+            $confirmPassword = $_POST['confirm_password'] ?? '';
+
+            if (empty($currentPassword) || empty($newPassword) || empty($confirmPassword)) {
+                render('auth/change-password', ['user' => $student, 'error' => 'Please fill in all fields']);
+                break;
+            }
+
+            if (!password_verify($currentPassword, $student['password'])) {
+                render('auth/change-password', ['user' => $student, 'error' => 'Current password is incorrect']);
+                break;
+            }
+
+            if ($newPassword !== $confirmPassword) {
+                render('auth/change-password', ['user' => $student, 'error' => 'Passwords do not match']);
+                break;
+            }
+
+            if (strlen($newPassword) < 6) {
+                render('auth/change-password', ['user' => $student, 'error' => 'Password must be at least 6 characters']);
+                break;
+            }
+
+            $hashedPassword = password_hash($newPassword, PASSWORD_DEFAULT);
+            db()->update("student_list/{$student['id']}", ['password' => $hashedPassword]);
+            $_SESSION['student']['password'] = $hashedPassword;
+
+            header('Location: /home');
+            exit;
+        }
+        render('auth/change-password', ['user' => $student]);
+        break;
+
+    case '/deleteHistory':
+        redirectIfNotStudent();
+        $id = $_GET['id'] ?? '';
+        $type = $_GET['type'] ?? 'appointment';
+        if ($id) {
+            if ($type === 'request') {
+                db()->remove("requests/$id");
+            } else {
+                db()->remove("appointment_dashboard/$id");
+            }
+        }
+        header('Location: /home?tab=history');
+        exit;
+
+    case '/clearHistory':
+        redirectIfNotStudent();
+        $student = getCurrentStudent();
+        $allAppointments = db()->get('appointment_dashboard') ?: [];
+        $allRequests = db()->get('requests') ?: [];
+        foreach ($allAppointments as $id => $appt) {
+            if (isset($appt['student_id']) && $appt['student_id'] === $student['id'] 
+                && (($appt['status'] ?? '') === 'Settled' || ($appt['status'] ?? '') === 'Cancelled')) {
+                db()->remove("appointment_dashboard/$id");
+            }
+        }
+        foreach ($allRequests as $id => $req) {
+            if (isset($req['inquiree_id']) && $req['inquiree_id'] === $student['id']
+                && ($req['status'] ?? '') === 'Declined') {
+                db()->remove("requests/$id");
+            }
+        }
+        header('Location: /home?tab=history');
+        exit;
+
+    case '/deleteAdminHistory':
+        redirectIfNotAdmin();
+        $id = $_GET['id'] ?? '';
+        if ($id) {
+            db()->remove("appointment_dashboard/$id");
+        }
+        header('Location: /adminhome?tab=history');
+        exit;
+
+    case '/clearAdminHistory':
+        redirectIfNotAdmin();
+        $allAppointments = db()->get('appointment_dashboard') ?: [];
+        foreach ($allAppointments as $id => $appt) {
+            if (($appt['status'] ?? '') === 'Settled' || ($appt['status'] ?? '') === 'Cancelled') {
+                db()->remove("appointment_dashboard/$id");
+            }
+        }
+        header('Location: /adminhome?tab=history');
+        exit;
 
     default:
         http_response_code(404);

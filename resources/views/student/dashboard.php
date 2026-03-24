@@ -15,9 +15,9 @@
                 RegiTrack
             </a>
             <div class="nav-links">
-                <a href="/home?tab=requests" class="nav-item active" data-tab="requests">My Requests</a>
-                <a href="/home?tab=appointments" class="nav-item" data-tab="appointments">Appointments</a>
-                <a href="/home?tab=history" class="nav-item" data-tab="history">History</a>
+                <a href="/home" class="nav-item active" data-tab="requests">My Requests</a>
+                <a href="/home" class="nav-item" data-tab="appointments">Appointments</a>
+                <a href="/home" class="nav-item" data-tab="history">History</a>
                 <a href="/about" class="nav-item">About</a>
                 <a href="/contact" class="nav-item">Contact</a>
             </div>
@@ -27,6 +27,9 @@
                     <i class="fa-solid fa-caret-down"></i>
                 </button>
                 <div class="dropdown-content" id="userDropdownMenu">
+                    <a href="/change-password">
+                        <i class="fa-solid fa-key"></i> Change Password
+                    </a>
                     <a href="/logout">
                         <i class="fa-solid fa-right-from-bracket"></i> Logout
                     </a>
@@ -129,34 +132,50 @@
             <div class="dashboard-section">
                 <div class="section-header">
                     <h2><i class="fa-solid fa-clock-rotate-left"></i> History</h2>
+                    <?php if (!empty($history)): ?>
+                        <a href="/clearHistory" class="btn-delete" onclick="return confirm('Clear all history?')">
+                            <i class="fa-solid fa-trash"></i> Clear All
+                        </a>
+                    <?php endif; ?>
                 </div>
                 <table>
                     <thead>
                         <tr>
                             <th>Request Type</th>
-                            <th>Retrieval Date</th>
+                            <th>Date</th>
                             <th>Status</th>
                             <th>Notes</th>
+                            <th>Action</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php if (!empty($history)): ?>
-                            <?php foreach ($history as $id => $appt): ?>
+                            <?php foreach ($history as $id => $item): ?>
+                                <?php 
+                                    $isDeclined = isset($item['request_type']) && !isset($item['type_of_request']);
+                                    $type = $item['type_of_request'] ?? $item['request_type'] ?? '';
+                                    $date = !empty($item['retrieval_date']) ? $item['retrieval_date'] : ($item['request_date'] ?? '');
+                                    $status = $isDeclined ? 'Declined' : ($item['status'] ?? 'Settled');
+                                ?>
                                 <tr>
-                                    <td><?= htmlspecialchars($appt['type_of_request'] ?? '') ?></td>
-                                    <td><?= htmlspecialchars(date('M d, Y', strtotime($appt['retrieval_date'] ?? '')) ?? '') ?></td>
+                                    <td><?= htmlspecialchars($type) ?></td>
+                                    <td><?= !empty($date) ? htmlspecialchars(date('M d, Y', strtotime($date))) : '-' ?></td>
                                     <td>
-                                        <?php $status = $appt['status'] ?? 'Settled'; ?>
                                         <span class="status <?= strtolower($status === 'Settled' ? 'complete' : $status) ?>">
                                             <?= htmlspecialchars($status === 'Settled' ? 'Complete' : $status) ?>
                                         </span>
                                     </td>
-                                    <td><?= htmlspecialchars($appt['cancel_reason'] ?? '-') ?></td>
+                                    <td><?= htmlspecialchars($item['cancel_reason'] ?? '-') ?></td>
+                                    <td>
+                                        <a href="/deleteHistory?id=<?= urlencode($id) ?>&type=<?= $isDeclined ? 'request' : 'appointment' ?>" class="btn-icon" onclick="return confirm('Delete this item?')">
+                                            <i class="fa-solid fa-trash"></i>
+                                        </a>
+                                    </td>
                                 </tr>
                             <?php endforeach; ?>
                         <?php else: ?>
                             <tr>
-                                <td colspan="4" class="text-center">No history</td>
+                                <td colspan="5" class="text-center">No history</td>
                             </tr>
                         <?php endif; ?>
                     </tbody>
@@ -186,6 +205,7 @@
 
         tabLinks.forEach(link => {
             link.addEventListener('click', (e) => {
+                e.preventDefault();
                 activateTab(link.dataset.tab);
             });
         });

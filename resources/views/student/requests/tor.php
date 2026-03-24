@@ -26,9 +26,8 @@
                     <i class="fa-solid fa-caret-down"></i>
                 </button>
                 <div class="dropdown-content" id="userDropdownMenu">
-                    <a href="/logout">
-                        <i class="fa-solid fa-right-from-bracket"></i> Logout
-                    </a>
+                    <a href="/change-password"><i class="fa-solid fa-key"></i> Change Password</a>
+                    <a href="/logout"><i class="fa-solid fa-right-from-bracket"></i> Logout</a>
                 </div>
             </div>
         </div>
@@ -78,12 +77,10 @@
     <script>
         const dropdownBtn = document.getElementById('userDropdownBtn');
         const dropdownMenu = document.getElementById('userDropdownMenu');
-
         dropdownBtn?.addEventListener('click', (e) => {
             e.stopPropagation();
             dropdownMenu.classList.toggle('show');
         });
-
         document.addEventListener('click', (e) => {
             if (!dropdownMenu?.contains(e.target) && !dropdownBtn?.contains(e.target)) {
                 dropdownMenu?.classList.remove('show');

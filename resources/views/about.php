@@ -10,43 +10,18 @@
 <body>
     <nav class="navbar">
         <div class="nav-container">
-            <?php if (isStudentLoggedIn()): ?>
-                <a href="/home" class="nav-logo">
-                    <i class="fa-solid fa-school"></i>
-                    RegiTrack
-                </a>
-                <div class="nav-links">
-                    <a href="/home?tab=requests" class="nav-item">My Requests</a>
-                    <a href="/home?tab=appointments" class="nav-item">Appointments</a>
-                    <a href="/home?tab=history" class="nav-item">History</a>
-                    <a href="/about" class="nav-item active">About</a>
-                    <a href="/contact" class="nav-item">Contact</a>
-                </div>
-                <div class="nav-user dropdown">
-                    <button class="dropbtn" id="userDropdownBtn">
-                        <i class="fa-solid fa-user"></i>
-                        <i class="fa-solid fa-caret-down"></i>
-                    </button>
-                    <div class="dropdown-content" id="userDropdownMenu">
-                        <a href="/logout">
-                            <i class="fa-solid fa-right-from-bracket"></i> Logout
-                        </a>
-                    </div>
-                </div>
-            <?php else: ?>
-                <a href="/" class="nav-logo">
-                    <i class="fa-solid fa-school"></i>
-                    RegiTrack
-                </a>
-                <div class="nav-links">
-                    <a href="/" class="nav-item">Home</a>
-                    <a href="/about" class="nav-item active">About</a>
-                    <a href="/contact" class="nav-item">Contact</a>
-                </div>
-                <div class="nav-user">
-                    <a href="/adminlogin" class="admin-link">Admin Login</a>
-                </div>
-            <?php endif; ?>
+            <a href="/" class="nav-logo">
+                <i class="fa-solid fa-school"></i>
+                RegiTrack
+            </a>
+            <div class="nav-links">
+                <a href="/" class="nav-item">Home</a>
+                <a href="/about" class="nav-item active">About</a>
+                <a href="/contact" class="nav-item">Contact</a>
+            </div>
+            <div class="nav-user">
+                <a href="/adminlogin" class="admin-link">Admin Login</a>
+            </div>
         </div>
     </nav>
 
@@ -92,23 +67,5 @@
             </div>
         </div>
     </div>
-
-    <?php if (isStudentLoggedIn()): ?>
-    <script>
-        const dropdownBtn = document.getElementById('userDropdownBtn');
-        const dropdownMenu = document.getElementById('userDropdownMenu');
-
-        dropdownBtn?.addEventListener('click', (e) => {
-            e.stopPropagation();
-            dropdownMenu.classList.toggle('show');
-        });
-
-        document.addEventListener('click', (e) => {
-            if (!dropdownMenu?.contains(e.target) && !dropdownBtn?.contains(e.target)) {
-                dropdownMenu?.classList.remove('show');
-            }
-        });
-    </script>
-    <?php endif; ?>
 </body>
 </html>
